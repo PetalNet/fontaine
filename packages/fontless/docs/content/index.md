@@ -183,7 +183,9 @@ fontless({
 
   // Experimental features
   experimental: {
-    disableLocalFallbacks: false
+    disableLocalFallbacks: false,
+    // Request the full weight range of variable fonts instead of `defaults.weights`
+    inferVariableWeights: false
   }
 })
 ```

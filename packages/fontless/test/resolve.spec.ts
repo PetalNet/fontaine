@@ -1,5 +1,6 @@
 import type { FontFaceData, InitializedProvider, Provider, ProviderContext } from 'unifont'
 import type { FontFamilyProviderOverride, FontlessOptions, RawFontFaceData } from '../src/types'
+import { providers } from 'unifont'
 import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import { defaultValues } from '../src/defaults'
 import { createResolver } from '../src/resolve'
@@ -1200,6 +1201,68 @@ describe('createResolver', () => {
       })
 
       await expect(resolver('Inter')).rejects.toThrow('listener failed')
+    })
+  })
+
+  describe('experimental.inferVariableWeights', () => {
+    const metadata = {
+      familyMetadataList: [
+        {
+          family: 'Inter',
+          category: 'Sans Serif',
+          subsets: ['latin'],
+          fonts: Object.fromEntries(['100', '400', '700', '900'].map(weight => [weight, {}])),
+          axes: [{ tag: 'wght', min: 100, max: 900, defaultValue: 400 }],
+        },
+        {
+          family: 'Static Sans',
+          category: 'Sans Serif',
+          subsets: ['latin'],
+          fonts: { 400: {}, 700: {} },
+          axes: [],
+        },
+      ],
+    }
+
+    async function resolveWithGoogle(family: string, options: Partial<FontlessOptions> = {}, override?: FontFamilyProviderOverride) {
+      const requested: string[] = []
+      vi.stubGlobal('fetch', async (url: string) => {
+        if (url === 'https://fonts.google.com/metadata/fonts') {
+          return new Response(JSON.stringify(metadata))
+        }
+        requested.push(url)
+        return new Response(`/* latin */\n@font-face {\n  font-family: '${family}';\n  src: url(https://fonts.gstatic.com/font.woff2) format('woff2');\n  unicode-range: U+0000-00FF;\n}\n`)
+      })
+      onTestFinished(() => void vi.unstubAllGlobals())
+
+      const google = () => providers.google()
+      const resolver = await createResolver({
+        options: { providers: { google }, ...options },
+        providers: { google },
+        normalizeFontData: defaultNormalizeFontData,
+      })
+      await resolver(family, override)
+      return requested
+    }
+
+    it('should request the default weights when disabled', async () => {
+      const requested = await resolveWithGoogle('Inter')
+      expect(requested).toEqual(['https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400'])
+    })
+
+    it('should request the full weight range of a variable font', async () => {
+      const requested = await resolveWithGoogle('Inter', { experimental: { inferVariableWeights: true } })
+      expect(requested).toEqual(['https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,100..900'])
+    })
+
+    it('should keep the default weights for a family with no variable weights', async () => {
+      const requested = await resolveWithGoogle('Static Sans', { experimental: { inferVariableWeights: true } })
+      expect(requested).toEqual(['https://fonts.googleapis.com/css2?family=Static Sans:ital,wght@0,400'])
+    })
+
+    it('should respect weights configured for the family', async () => {
+      const requested = await resolveWithGoogle('Inter', { experimental: { inferVariableWeights: true } }, { name: 'Inter', weights: [700] })
+      expect(requested).toEqual(['https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,700'])
     })
   })
 })

@@ -188,6 +188,12 @@ export async function createResolver(context: ResolverContext): Promise<Resolver
 
   const defaultGlyphs = normalizeGlyphs(options.defaults?.glyphs)
 
+  /** The `wght` range a family is published with as a variable font, if any. */
+  async function inferVariableWeights(fontFamily: string, providerNames: string[]): Promise<string | undefined> {
+    const properties = await unifont.getFontProperties(fontFamily, providerNames)
+    return properties?.weights?.find(weight => weight.includes(' '))
+  }
+
   return async function resolveFontFaceWithOverride(fontFamily: string, override?: FontFamilyManualOverride | FontFamilyProviderOverride, fallbackOptions?: { fallbacks: string[], generic?: GenericCSSFamily }): Promise<FontFaceResolution | undefined> {
     if (!override && isSystemFontFamily(fontFamily)) {
       return
@@ -225,6 +231,15 @@ export async function createResolver(context: ResolverContext): Promise<Resolver
     }
     if (override?.formats) {
       defaults.formats = override.formats
+    }
+    if (options.experimental?.inferVariableWeights && !override?.weights) {
+      const providerNames = override?.provider && override.provider in providers
+        ? [toProviderName(override.provider)]
+        : toProviderNames(prioritisedProviders)
+      const range = await inferVariableWeights(fontFamily, providerNames)
+      if (range) {
+        defaults.weights = [range]
+      }
     }
 
     // provider-specific options if available

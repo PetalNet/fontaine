@@ -296,6 +296,15 @@ export interface FontlessOptions {
      */
     disableLocalFallbacks?: boolean
     /**
+     * Request the full `wght` range of variable fonts rather than the default weights.
+     *
+     * When a provider reports that a family is published as a variable font, its whole weight
+     * range (for example `100 900`) is requested in a single file. Families that are only
+     * published as static weights, and families with their own `weights`, are left alone.
+     * @default false
+     */
+    inferVariableWeights?: boolean
+    /**
      * You can enable support for processing CSS variables for font family names.
      * @default 'font-prefixed-only'
      * @deprecated This feature is no longer experimental. Use `processCSSVariables` instead. For Tailwind v4 users, setting this option to `true` is no longer needed or recommended.
