@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { normalizeFontData } from '../src/assets'
 import { createResolver } from '../src/resolve'
-import { normalizeAxisValues, resolveVariationAxes, subsetFontData, unicodeRangeToText, withoutVariationSettings } from '../src/subset'
+import { normalizeAxisValues, rendersAnyOf, resolveVariationAxes, subsetFontData, unicodeRangeToText, withoutVariationSettings } from '../src/subset'
 
 const fixture = fileURLToPath(new URL('fixtures/font.woff2', import.meta.url))
 
@@ -158,6 +158,39 @@ describe('unicodeRangeToText', () => {
     expect(unicodeRangeToText(['U+0041-110000'])).toBeUndefined()
     expect(unicodeRangeToText(['U+??????'])).toBeUndefined()
     expect(unicodeRangeToText(['U+10FFFF'])).toBe('\u{10FFFF}')
+  })
+})
+
+describe('rendersAnyOf', () => {
+  it('should match a glyph in any range, single codepoint or wildcard', () => {
+    expect(rendersAnyOf(['U+0400-045F', 'U+0041'], 'A')).toBe(true)
+    expect(rendersAnyOf(['U+004?'], 'H')).toBe(true)
+    expect(rendersAnyOf(['U+0400-045F', 'U+0100-017F'], 'Hand')).toBe(false)
+  })
+
+  it('should assume a face renders the glyphs when it cannot tell', () => {
+    expect(rendersAnyOf(undefined, 'Hand')).toBe(true)
+    expect(rendersAnyOf([], 'Hand')).toBe(true)
+    expect(rendersAnyOf(['U+0400-045F', 'nonsense'], 'Hand')).toBe(true)
+    expect(rendersAnyOf(['U+0400-045F'], undefined)).toBe(true)
+  })
+})
+
+describe('faces for none of the glyphs', () => {
+  it('should be dropped, keeping the faces that render them', () => {
+    const context = createContext()
+    const face = (unicodeRange: string[]) => ({ src: [{ url: `https://fonts.example.com/${unicodeRange[0]}.woff2`, format: 'woff2' }], unicodeRange })
+    const faces = normalizeFontData(context, [face(['U+0400-045F']), face(['U+0000-00FF'])], { glyphs: 'Hand' })
+
+    expect(faces.map(face => face.unicodeRange)).toEqual([['U+0000-00FF']])
+    expect(context.renderedFontURLs.size).toBe(1)
+  })
+
+  it('should all be kept when no glyphs are given', () => {
+    const context = createContext()
+    const face = (unicodeRange: string[]) => ({ src: [{ url: 'https://fonts.example.com/font.woff2', format: 'woff2' }], unicodeRange })
+
+    expect(normalizeFontData(context, [face(['U+0400-045F']), face(['U+0000-00FF'])])).toHaveLength(2)
   })
 })
 

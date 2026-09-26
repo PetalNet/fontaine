@@ -179,7 +179,7 @@ fontless({
 
 Subsetting happens on the font file itself with [harfbuzz](https://harfbuzz.github.io/) (via [`subset-font`](https://github.com/papandreou/subset-font)), so it works for fonts from every provider as well as local files, keeps the original format and keeps a variable font's axes. Where the provider can subset server-side (Google Fonts' `text=` API) the glyph list is passed through to it as well, so the full file is never downloaded.
 
-The glyph list is part of the emitted file's name, so two families sharing a source font with different glyph lists get their own file, and changing the list invalidates the cache. Fallback metrics are still read from the original font, so `size-adjust` and friends are unaffected. Files are emitted unchanged for families without `glyphs`.
+The glyph list is part of the emitted file's name, so two families sharing a source font with different glyph lists get their own file, and changing the list invalidates the cache. Fallback metrics are still read from the original font, so `size-adjust` and friends are unaffected. Files are emitted unchanged for families without `glyphs`, and a face whose `unicode-range` covers none of the glyphs (another script's subset, say) is dropped.
 
 > [!IMPORTANT]
 > Subsetting modifies the font file you ship. Some licences (particularly commercial and free-with-conditions ones) restrict modifying, converting or self-hosting a font, so check the licence or terms of the font you are subsetting before enabling this.
