@@ -9,7 +9,7 @@ import { join } from 'pathe'
 import { build, createServer } from 'vite'
 import { afterAll, describe, expect, it } from 'vitest'
 import { fontless } from '../src'
-import { normalizeGlyphs, subsetFontData } from '../src/subset'
+import { normalizeGlyphs, rendersAnyOf, subsetFontData } from '../src/subset'
 
 const fixture = fileURLToPath(new URL('fixtures/font.woff2', import.meta.url))
 const scratchDirs: string[] = []
@@ -107,6 +107,21 @@ describe('normalizeGlyphs', () => {
   })
 })
 
+describe('rendersAnyOf', () => {
+  it('should match a glyph in any range, single codepoint or wildcard', () => {
+    expect(rendersAnyOf(['U+0400-045F', 'U+0041'], 'A')).toBe(true)
+    expect(rendersAnyOf(['U+004?'], 'H')).toBe(true)
+    expect(rendersAnyOf(['U+0400-045F', 'U+0100-017F'], 'Hand')).toBe(false)
+  })
+
+  it('should assume a face renders the glyphs when it cannot tell', () => {
+    expect(rendersAnyOf(undefined, 'Hand')).toBe(true)
+    expect(rendersAnyOf([], 'Hand')).toBe(true)
+    expect(rendersAnyOf(['U+0400-045F', 'nonsense'], 'Hand')).toBe(true)
+    expect(rendersAnyOf(['U+0400-045F'], undefined)).toBe(true)
+  })
+})
+
 describe('subsetFontData', () => {
   it('should fall back to the original font when subsetting fails', async () => {
     const font = Buffer.from('not-really-a-font')
@@ -164,6 +179,14 @@ describe('glyph subsetting', () => {
     const { fonts } = await buildApp(root, { families: [family] })
 
     expect(fonts[0]!.length).toBeLessThan((await fsp.readFile(fixture)).length)
+  })
+
+  it('should drop a face whose unicode range covers none of the glyphs', { timeout: 20_000 }, async () => {
+    const root = await createFixture(`body { font-family: 'Inter' }`)
+    const family = { ...manualFamily('Inter', 'Handgloves'), unicodeRange: ['U+0400-045F'] }
+    const { files } = await buildApp(root, { families: [family] })
+
+    expect(files).toHaveLength(0)
   })
 
   it('should emit one file per glyph list for the same source font', { timeout: 20_000 }, async () => {

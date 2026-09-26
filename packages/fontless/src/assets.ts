@@ -7,7 +7,7 @@ import { extname, relative } from 'pathe'
 import { filename } from 'pathe/utils'
 import { hasProtocol, joinRelativeURL, joinURL } from 'ufo'
 import { formatToExtension, parseFont } from './css/render'
-import { glyphsToUnicodeRange, resolveVariationAxes, unicodeRangeToText, withoutVariationSettings } from './subset'
+import { glyphsToUnicodeRange, rendersAnyOf, resolveVariationAxes, unicodeRangeToText, withoutVariationSettings } from './subset'
 
 function hashableSource(context: NormalizeFontDataContext, source: { url: string }) {
   if (!source.url.startsWith('file://') || !context.root) {
@@ -72,6 +72,11 @@ export function normalizeFontData(context: NormalizeFontDataContext, faces: RawF
   for (const face of toArray<RawFontFaceData | FontFaceData>(faces)) {
     let subsetted = false
     const unicodeRange = toArray(face.unicodeRange)
+    // A face for none of the family's glyphs, such as another script's subset, would be
+    // emitted as a font with nothing in it.
+    if (!rendersAnyOf(unicodeRange, options.glyphs)) {
+      continue
+    }
     const requested = options.variableAxis && resolveVariationAxes(options.variableAxis)
     // Instancing means subsetting, so it needs a glyph list: the family's own, or the
     // characters the face declares it can render.

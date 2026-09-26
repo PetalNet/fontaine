@@ -151,6 +151,38 @@ export function resolveVariationAxes(variableAxis: ResolvedVariableAxisOptions):
   return Object.keys(axes).length > 0 ? { axes, pinned } : undefined
 }
 
+/** The first and last codepoint of a `unicode-range` entry, or `undefined` if it is not a valid one. */
+function toCodepointRange(entry: string): [number, number] | undefined {
+  const match = UNICODE_RANGE_ENTRY.exec(entry.trim())
+  if (!match) {
+    return undefined
+  }
+  const [, single, rangeEnd, prefix, wildcards] = match
+  const start = Number.parseInt(single ?? prefix! + '0'.repeat(wildcards!.length), 16)
+  const end = single
+    ? Number.parseInt(rangeEnd ?? single, 16)
+    : Number.parseInt(prefix! + 'F'.repeat(wildcards!.length), 16)
+  return end < start || end > MAX_CODEPOINT ? undefined : [start, end]
+}
+
+/**
+ * Whether a face declaring `unicodeRange` can render any of `glyphs`. A face with no
+ * `unicode-range`, or one that cannot be read, is assumed to.
+ */
+export function rendersAnyOf(unicodeRange: string[] | undefined, glyphs: string | undefined): boolean {
+  if (!unicodeRange?.length || !glyphs) {
+    return true
+  }
+  const ranges = unicodeRange.map(toCodepointRange)
+  if (ranges.includes(undefined)) {
+    return true
+  }
+  return [...glyphs].some((character) => {
+    const codepoint = character.codePointAt(0)!
+    return ranges.some(range => range![0] <= codepoint && codepoint <= range![1])
+  })
+}
+
 /**
  * Expand a face's `unicode-range` into the characters it declares, so a font can be
  * instanced without narrowing what it can render. `undefined` if the range is too large.
@@ -162,18 +194,11 @@ export function unicodeRangeToText(unicodeRange?: string[], maxCodepoints: numbe
   let text = ''
   let count = 0
   for (const entry of unicodeRange) {
-    const match = UNICODE_RANGE_ENTRY.exec(entry.trim())
-    if (!match) {
+    const range = toCodepointRange(entry)
+    if (!range) {
       return undefined
     }
-    const [, single, rangeEnd, prefix, wildcards] = match
-    const start = Number.parseInt(single ?? prefix! + '0'.repeat(wildcards!.length), 16)
-    const end = single
-      ? Number.parseInt(rangeEnd ?? single, 16)
-      : Number.parseInt(prefix! + 'F'.repeat(wildcards!.length), 16)
-    if (end < start || end > MAX_CODEPOINT) {
-      return undefined
-    }
+    const [start, end] = range
     count += end - start + 1
     if (count > maxCodepoints) {
       return undefined
