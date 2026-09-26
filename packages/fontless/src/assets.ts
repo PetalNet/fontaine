@@ -72,7 +72,7 @@ export function normalizeFontData(context: NormalizeFontDataContext, faces: RawF
   for (const face of toArray<RawFontFaceData | FontFaceData>(faces)) {
     let subsetted = false
     const unicodeRange = toArray(face.unicodeRange)
-    const requested = options.variableAxis && resolveVariationAxes(options.variableAxis)
+    const requested = options.variableAxis && resolveVariationAxes(options.variableAxis, face)
     // Instancing means subsetting, so it needs a glyph list: the family's own, or the
     // characters the face declares it can render.
     const glyphs = requested || !isCoveredBy(unicodeRange, options.glyphs) ? options.glyphs : undefined
@@ -118,6 +118,8 @@ export function normalizeFontData(context: NormalizeFontDataContext, faces: RawF
       variationSettings: subsetted && variationAxes && requested
         ? withoutVariationSettings(face.variationSettings, requested.pinned)
         : face.variationSettings,
+      // An instanced `wght` axis only has the weights left that it was narrowed to.
+      weight: subsetted && variationAxes && requested?.weight !== undefined ? requested.weight : face.weight,
       src,
     })
   }

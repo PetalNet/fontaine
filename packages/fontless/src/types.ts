@@ -91,7 +91,8 @@ export interface FontFamilyOverrides {
    * can. Otherwise the axis is applied to the downloaded file, which requires `subset-font`
    * and a glyph list to subset to, either from `glyphs` or from the face's `unicode-range`.
    *
-   * `wght` and `ital` are left alone: they are expressed by `@font-face` descriptors.
+   * `wght` and `ital` are applied within each face's `font-weight` and `font-style`, and an
+   * instanced face's `font-weight` is narrowed to match.
    *
    * **Experimental.** Provider support and the option shape may change.
    *

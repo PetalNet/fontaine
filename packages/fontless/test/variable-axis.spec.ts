@@ -43,11 +43,39 @@ describe('resolveVariationAxes', () => {
       .toEqual({ axes: { MONO: { min: 0, max: 1 } }, pinned: [] })
   })
 
-  it('should leave axes expressed by `@font-face` descriptors alone', () => {
+  it('should leave axes expressed by `@font-face` descriptors alone without a face to fit them to', () => {
     expect(resolveVariationAxes({
       wght: { values: ['700'], appliedAs: 'none' },
       ital: { values: ['1'], appliedAs: 'none' },
     })).toBeUndefined()
+  })
+
+  it('should apply `wght` within the weights a face declares, reporting the weight left', () => {
+    const range: ResolvedVariableAxisOptions = { wght: { values: [['400', '600']], appliedAs: 'none' } }
+    const pin: ResolvedVariableAxisOptions = { wght: { values: ['400'], appliedAs: 'none' } }
+
+    expect(resolveVariationAxes(range, { weight: '200 900' })).toEqual({ axes: { wght: { min: 400, max: 600 } }, pinned: [], weight: [400, 600] })
+    expect(resolveVariationAxes(range, { weight: [500, 900] })).toEqual({ axes: { wght: { min: 500, max: 600 } }, pinned: [], weight: [500, 600] })
+    expect(resolveVariationAxes(range, { weight: 600 })).toEqual({ axes: { wght: 600 }, pinned: [], weight: 600 })
+    expect(resolveVariationAxes(range, {})).toEqual({ axes: { wght: { min: 400, max: 600 } }, pinned: [], weight: [400, 600] })
+    expect(resolveVariationAxes(pin, { weight: '200 900' })).toEqual({ axes: { wght: 400 }, pinned: [], weight: 400 })
+  })
+
+  it('should leave `wght` alone for a face whose weights it misses or cannot read', () => {
+    const pin: ResolvedVariableAxisOptions = { wght: { values: ['400'], appliedAs: 'none' } }
+
+    expect(resolveVariationAxes(pin, { weight: 700 })).toBeUndefined()
+    expect(resolveVariationAxes(pin, { weight: 'bold' })).toBeUndefined()
+  })
+
+  it('should pin `ital` only to the style a face declares', () => {
+    const range: ResolvedVariableAxisOptions = { ital: { values: [['0', '1']], appliedAs: 'none' } }
+    const italic: ResolvedVariableAxisOptions = { ital: { values: ['1'], appliedAs: 'none' } }
+
+    expect(resolveVariationAxes(range, { style: 'italic' })).toEqual({ axes: { ital: 1 }, pinned: [] })
+    expect(resolveVariationAxes(range, {})).toEqual({ axes: { ital: 0 }, pinned: [] })
+    expect(resolveVariationAxes(italic, { style: 'normal' })).toBeUndefined()
+    expect(resolveVariationAxes(italic, { style: 'oblique 10deg' })).toBeUndefined()
   })
 
   it('should leave multi-value and non-numeric axes alone', () => {
@@ -152,6 +180,25 @@ describe('variable axis instancing', () => {
 
     expect(emitted[1].variationAxes).toEqual({ MONO: { min: 0, max: 1 } })
     expect(face.variationSettings).toBeUndefined()
+  })
+
+  it('should narrow a face\'s `font-weight` to the `wght` its file is instanced to', () => {
+    const { face, emitted } = renderFace({ weight: '200 900' }, {
+      glyphs: 'Hand',
+      variableAxis: { wght: { values: [['400', '600']], appliedAs: 'none' } },
+    })
+
+    expect(emitted[1].variationAxes).toEqual({ wght: { min: 400, max: 600 } })
+    expect(face.weight).toEqual([400, 600])
+  })
+
+  it('should keep a face\'s `font-weight` when its file is not instanced', () => {
+    const { face, emitted } = renderFace({ weight: '200 900' }, {
+      variableAxis: { wght: { values: [['400', '600']], appliedAs: 'none' } },
+    })
+
+    expect(emitted[1].variationAxes).toBeUndefined()
+    expect(face.weight).toBe('200 900')
   })
 
   it('should leave the font alone when the provider instanced it already', () => {

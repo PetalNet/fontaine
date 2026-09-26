@@ -249,7 +249,7 @@ Providers that can instance a font server-side, such as Google Fonts, serve the 
 
 Applying an axis locally means subsetting the file, so it needs a glyph list: either the family's `glyphs`, or the characters the face's `unicode-range` declares. Without either, the file is emitted untouched and the descriptor is kept, so the font still renders at the requested values. An axis a font file does not have is skipped, keeping any glyph subset. Because it is a subsetting pass, the licence caveat under [Glyph Subsetting](#glyph-subsetting) applies to the file you ship.
 
-The axis values are part of the emitted file's name, so two families sharing a source font with different values get their own file. `wght` and `ital` are left alone, because `@font-face` descriptors already express them.
+The axis values are part of the emitted file's name, so two families sharing a source font with different values get their own file. `wght` and `ital` select between faces through `@font-face` descriptors, so each face's file is only instanced within the `font-weight` or `font-style` it declares, and its `font-weight` is narrowed to match.
 
 This option is experimental: provider support and the option shape may change.
 

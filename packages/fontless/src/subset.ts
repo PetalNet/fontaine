@@ -1,4 +1,5 @@
 import type { Buffer } from 'node:buffer'
+import type { FontFaceData } from 'unifont'
 import type { ResolvedVariableAxisOptions, VariableAxisOptions } from './types'
 import { consola } from 'consola'
 
@@ -76,7 +77,10 @@ function toHex(codepoint: number): string {
 /** Axis values to apply to a font file: a number pins the axis, a range narrows it. */
 export type VariationAxes = Record<string, number | { min: number, max: number }>
 
-/** Axes `@font-face` descriptors select, so instancing them would lose faces. */
+/**
+ * Axes `@font-face` descriptors select faces by. They are only applied within the range the
+ * face declares, so instancing the file never removes values another face is matched for.
+ */
 const DESCRIPTOR_AXES = new Set(['wght', 'ital'])
 
 /** The highest codepoint Unicode defines, and so the highest `String.fromCodePoint` accepts. */
@@ -128,27 +132,61 @@ function toVariationAxis(values: Array<string | [string, string]>): VariationAxe
   return Number.isFinite(min) && Number.isFinite(max) ? { min, max } : undefined
 }
 
+/** The `[min, max]` values of a descriptor axis that `face` declares, or `undefined` if it cannot be read. */
+function descriptorRange(tag: string, face: Pick<FontFaceData, 'weight' | 'style'>): [number, number] | undefined {
+  if (tag === 'ital') {
+    const style = face.style ?? 'normal'
+    return style === 'normal' ? [0, 0] : style === 'italic' ? [1, 1] : undefined
+  }
+  if (face.weight === undefined) {
+    return [-Infinity, Infinity]
+  }
+  const values = (Array.isArray(face.weight) ? face.weight : String(face.weight).trim().split(/\s+/)).map(Number)
+  return values.every(Number.isFinite) ? [Math.min(...values), Math.max(...values)] : undefined
+}
+
+/** Narrow `axis` to the values `face` declares for it, or `undefined` if they do not overlap. */
+function withinDescriptor(tag: string, axis: VariationAxes[string], face: Pick<FontFaceData, 'weight' | 'style'>): VariationAxes[string] | undefined {
+  const range = descriptorRange(tag, face)
+  if (!range) {
+    return undefined
+  }
+  const min = Math.max(typeof axis === 'number' ? axis : axis.min, range[0])
+  const max = Math.min(typeof axis === 'number' ? axis : axis.max, range[1])
+  return min > max ? undefined : min === max ? min : { min, max }
+}
+
 /**
- * Axis values `fontless` can apply to a font file itself, and (as `pinned`) the tags whose
- * descriptor instancing the file makes redundant.
+ * Axis values `fontless` can apply to a font file itself, (as `pinned`) the tags whose
+ * descriptor instancing the file makes redundant, and (as `weight`) the `font-weight`
+ * descriptor that matches an instanced `wght` axis.
+ *
+ * `wght` and `ital` are only applied given the `face` they are for, within what it declares.
  */
-export function resolveVariationAxes(variableAxis: ResolvedVariableAxisOptions): { axes: VariationAxes, pinned: string[] } | undefined {
+export function resolveVariationAxes(variableAxis: ResolvedVariableAxisOptions, face?: Pick<FontFaceData, 'weight' | 'style'>): { axes: VariationAxes, pinned: string[], weight?: FontFaceData['weight'] } | undefined {
   const axes: VariationAxes = {}
   const pinned: string[] = []
+  let weight: FontFaceData['weight']
   for (const [tag, resolved] of Object.entries(variableAxis)) {
-    if (!resolved || resolved.appliedAs === 'font-file' || DESCRIPTOR_AXES.has(tag)) {
+    if (!resolved || resolved.appliedAs === 'font-file' || (DESCRIPTOR_AXES.has(tag) && !face)) {
       continue
     }
-    const axis = toVariationAxis(resolved.values)
+    let axis = toVariationAxis(resolved.values)
+    if (axis !== undefined && face && DESCRIPTOR_AXES.has(tag)) {
+      axis = withinDescriptor(tag, axis, face)
+    }
     if (axis === undefined) {
       continue
     }
     axes[tag] = axis
+    if (tag === 'wght') {
+      weight = typeof axis === 'number' ? axis : [axis.min, axis.max]
+    }
     if (resolved.appliedAs === 'variation-settings' && typeof axis === 'number') {
       pinned.push(tag)
     }
   }
-  return Object.keys(axes).length > 0 ? { axes, pinned } : undefined
+  return Object.keys(axes).length > 0 ? { axes, pinned, ...(weight !== undefined && { weight }) } : undefined
 }
 
 /**

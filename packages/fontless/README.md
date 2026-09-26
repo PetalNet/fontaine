@@ -206,7 +206,7 @@ The request is passed to the provider first. Google Fonts serves an already-inst
 
 Applying an axis locally means subsetting the file, so it needs a glyph list: either the family's `glyphs`, or the characters the face's `unicode-range` declares. Without either, the file is emitted untouched and the `font-variation-settings` descriptor is kept, so the font still renders at the requested values. An axis a font file does not have is skipped, keeping any glyph subset. Because it is a subsetting pass, the licence caveat under [Glyph Subsetting](#glyph-subsetting) applies to the file you ship.
 
-The axis values are part of the emitted file's name, so two families sharing a source font with different values get their own file, and changing a value invalidates the cache. `wght` and `ital` are left alone: they are expressed by `@font-face` descriptors, and pinning them would lose the other faces of the family.
+The axis values are part of the emitted file's name, so two families sharing a source font with different values get their own file, and changing a value invalidates the cache. `wght` and `ital` select between faces through `@font-face` descriptors, so each face's file is only instanced within the `font-weight` or `font-style` it declares, and its `font-weight` is narrowed to match. A face declaring `font-weight: 100 900` with `variableAxis: { wght: [[400, 600]] }` is emitted as a `400 600` face, and a request that misses a face's declared range leaves that face alone.
 
 > [!NOTE]
 > This option is experimental. Provider support and the option shape may change.
