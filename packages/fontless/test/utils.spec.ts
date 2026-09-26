@@ -60,6 +60,24 @@ describe('transformCSS', () => {
     expect(result).not.toContain(`font-family: 'Poppins';`)
   })
 
+  it('should give each face of a family its own fallback face', async () => {
+    const metrics = (ascent: number) => ({ unitsPerEm: 1000, ascent, descent: -250, lineGap: 0, xWidthAvg: 500 })
+    const result = await transform(`:root { font-family: 'Poppins' }`, {
+      resolveFontFace: () => ({
+        fonts: [
+          { src: [{ url: '/poppins-400.woff2', format: 'woff2' }], weight: '400', metrics: metrics(900) },
+          { src: [{ url: '/poppins-700.woff2', format: 'woff2' }], weight: '700', metrics: metrics(1000) },
+        ] as never,
+        fallbacks: ['Arial'],
+      }),
+    })
+
+    const fallbackFaces = result.match(/@font-face \{[^}]*Poppins Fallback: Arial[^}]*\}/g)
+    expect(fallbackFaces).toHaveLength(2)
+    expect(fallbackFaces!.find(face => face.includes('font-weight: 400;'))).toContain('ascent-override: 80.2441%')
+    expect(fallbackFaces!.find(face => face.includes('font-weight: 700;'))).toContain('ascent-override: 89.1602%')
+  })
+
   it('should emit the primary `@font-face` alongside fallbacks by default', async () => {
     const result = await transform(`:root { font-family: 'Poppins' }`, {
       resolveFontFace: () => ({

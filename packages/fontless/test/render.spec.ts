@@ -115,6 +115,39 @@ describe('generateFontFallbacks', () => {
     expect(css).toContain('local("Some Unknown Font")')
   })
 
+  it('should carry the weight, style and stretch of the face it stands in for', async () => {
+    const fallbacks = [{ name: 'Inter Fallback: Arial', font: 'Arial' }]
+    const [regular] = await generateFontFallbacks('Inter', {
+      src: [{ url: '/inter-400.woff2' }],
+      weight: '400',
+      style: 'normal',
+      metrics: { unitsPerEm: 1000, ascent: 900, descent: -250, lineGap: 0, xWidthAvg: 500 },
+    } as never, fallbacks)
+    const [bold] = await generateFontFallbacks('Inter', {
+      src: [{ url: '/inter-700.woff2' }],
+      weight: '700',
+      style: 'italic',
+      stretch: '75% 125%',
+      metrics: { unitsPerEm: 1000, ascent: 1000, descent: -250, lineGap: 0, xWidthAvg: 500 },
+    } as never, fallbacks)
+
+    expect(regular).toContain('font-weight: 400;')
+    expect(regular).toContain('font-style: normal;')
+    expect(regular).not.toContain('font-stretch')
+    expect(bold).toContain('font-weight: 700;')
+    expect(bold).toContain('font-style: italic;')
+    expect(bold).toContain('font-stretch: 75% 125%;')
+  })
+
+  it('should carry a variable weight range through as a range', async () => {
+    const [css] = await generateFontFallbacks('Inter', {
+      src: [{ url: '/inter.woff2' }],
+      weight: [100, 900],
+    }, [{ name: 'Inter Fallback: Arial', font: 'Arial' }])
+
+    expect(css).toContain('font-weight: 100 900;')
+  })
+
   it('should generate no fallbacks when none are requested', async () => {
     expect(await generateFontFallbacks('Inter', { src: [{ url: '/inter.woff2' }] })).toEqual([])
   })

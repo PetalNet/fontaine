@@ -98,6 +98,25 @@ function resolveProviderMetrics(data: NormalizedFontFaceData, knownMetrics: Fall
   }
 }
 
+/**
+ * The descriptors that tie a fallback face to the face it stands in for. Faces of one family can
+ * report different metrics, and without these every fallback would share a single slot in the
+ * family, so the last one declared would be used for every weight and style.
+ */
+function renderFaceDescriptors(font: NormalizedFontFaceData): Record<string, string> {
+  const descriptors: Record<string, string> = {}
+  if (font.weight) {
+    descriptors['font-weight'] = Array.isArray(font.weight) ? font.weight.join(' ') : String(font.weight)
+  }
+  if (font.style) {
+    descriptors['font-style'] = font.style
+  }
+  if (font.stretch) {
+    descriptors['font-stretch'] = font.stretch
+  }
+  return descriptors
+}
+
 export async function generateFontFallbacks(family: string, data: NormalizedFontFaceData, fallbacks?: Array<{ name: string, font: string }>): Promise<string[]> {
   if (!fallbacks?.length)
     return []
@@ -109,11 +128,13 @@ export async function generateFontFallbacks(family: string, data: NormalizedFont
   if (!metrics)
     return []
 
+  const descriptors = renderFaceDescriptors(data)
   const css: string[] = []
   for (const fallback of fallbacks) {
     css.push(generateFallbackFontFace(metrics, {
       ...fallback,
       metrics: await getMetricsForFamily(fallback.font) || undefined,
+      ...descriptors,
     }))
   }
   return css
